@@ -50,15 +50,13 @@ echo [INFO] Workspace: %SYSTEM_MCP_WORKSPACES%
 echo [INFO] Starting system-mcp...
 echo.
 
-REM Build if dist missing
-if not exist "dist\index.js" (
-    echo [INFO] Building TypeScript...
-    call npm run build
-    if errorlevel 1 (
-        echo [ERROR] Build failed.
-        pause
-        exit /b 1
-    )
+REM Always rebuild to pick up latest changes
+echo [INFO] Building TypeScript...
+call npm run build
+if errorlevel 1 (
+    echo [ERROR] Build failed.
+    pause
+    exit /b 1
 )
 
 REM Start server

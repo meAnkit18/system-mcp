@@ -40,11 +40,9 @@ echo "[INFO] Workspace: $SYSTEM_MCP_WORKSPACES"
 echo "[INFO] Starting system-mcp..."
 echo
 
-# Build if dist missing
-if [ ! -f "dist/index.js" ]; then
-    echo "[INFO] Building TypeScript..."
-    npm run build
-fi
+# Always rebuild to pick up latest changes
+echo "[INFO] Building TypeScript..."
+npm run build
 
 # Print the URL clearly
 echo "============================================"
