@@ -25,7 +25,7 @@ export function registerDashboardRoutes(app: FastifyInstance, ctx: ServerContext
 
   function publicUrl(ctx: ServerContext): string {
     const env = process.env.SYSTEM_MCP_PUBLIC_URL;
-    if (env) return env.replace(/\\/$/, '') + '/mcp';
+    if (env) return env.replace(/\/$/, '') + '/mcp';
     return `http://${ctx.config.host === '0.0.0.0' ? '127.0.0.1' : ctx.config.host}:${ctx.config.port}/mcp`;
   }
 
