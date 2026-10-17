@@ -46,8 +46,16 @@ if [ ! -f "dist/index.js" ]; then
     npm run build
 fi
 
+# Print the URL clearly
+echo "============================================"
+echo "  Dashboard: http://127.0.0.1:8787/dashboard"
+echo "  MCP endpoint: http://127.0.0.1:8787/mcp"
+echo "  Open the Dashboard URL above in your browser."
+echo "============================================"
+echo
+
 # Open dashboard in background (best effort)
-(sleep 3 && (xdg-open http://127.0.0.1:8787/dashboard 2>/dev/null || open http://127.0.0.1:8787/dashboard 2>/dev/null || true)) &
+(sleep 3 && (xdg-open http://127.0.0.1:8787/dashboard 2>/dev/null || sensible-browser http://127.0.0.1:8787/dashboard 2>/dev/null || true)) &
 
 # Start server
 npm start
