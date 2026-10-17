@@ -1,6 +1,12 @@
 import { FastifyInstance } from 'fastify';
 import { ServerContext } from '../mcp/context.js';
 
+function publicUrl(ctx: ServerContext): string {
+  const env = process.env.SYSTEM_MCP_PUBLIC_URL;
+  if (env) return env.replace(/\/$/, '') + '/mcp';
+  return `http://${ctx.config.host === '0.0.0.0' ? '127.0.0.1' : ctx.config.host}:${ctx.config.port}/mcp`;
+}
+
 export function registerDashboardRoutes(app: FastifyInstance, ctx: ServerContext): void {
   app.get('/', async (_req, reply) => {
     reply.type('text/html').send(renderDashboard(ctx));
@@ -22,12 +28,6 @@ export function registerDashboardRoutes(app: FastifyInstance, ctx: ServerContext
       runningCommands: ctx.store.running().length,
     };
   });
-
-  function publicUrl(ctx: ServerContext): string {
-    const env = process.env.SYSTEM_MCP_PUBLIC_URL;
-    if (env) return env.replace(/\/$/, '') + '/mcp';
-    return `http://${ctx.config.host === '0.0.0.0' ? '127.0.0.1' : ctx.config.host}:${ctx.config.port}/mcp`;
-  }
 
   app.get('/api/connection', async () => {
     const url = publicUrl(ctx);
