@@ -134,6 +134,11 @@ else
     echo "       or: ssh -R 80:localhost:$PORT nokey@localhost.run"
 fi
 
+# Expose public URL to the server/dashboard if a tunnel is active
+if [ -n "$TUNNEL_URL" ]; then
+    export SYSTEM_MCP_PUBLIC_URL="$TUNNEL_URL"
+fi
+
 cleanup() {
     if [ -n "$TUNNEL_PID" ]; then kill "$TUNNEL_PID" 2>/dev/null || true; fi
     [ -n "$TUNNEL_LOG" ] && rm -f "$TUNNEL_LOG"

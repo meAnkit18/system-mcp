@@ -23,8 +23,14 @@ export function registerDashboardRoutes(app: FastifyInstance, ctx: ServerContext
     };
   });
 
+  function publicUrl(ctx: ServerContext): string {
+    const env = process.env.SYSTEM_MCP_PUBLIC_URL;
+    if (env) return env.replace(/\\/$/, '') + '/mcp';
+    return `http://${ctx.config.host === '0.0.0.0' ? '127.0.0.1' : ctx.config.host}:${ctx.config.port}/mcp`;
+  }
+
   app.get('/api/connection', async () => {
-    const url = `http://${ctx.config.host === '0.0.0.0' ? '127.0.0.1' : ctx.config.host}:${ctx.config.port}/mcp`;
+    const url = publicUrl(ctx);
     const tools = [
       'list_files','read_file','write_file','edit_file','create_directory','move_file',
       'delete_file','search_files','execute_command','get_command_status','terminate_command',
@@ -42,7 +48,7 @@ export function registerDashboardRoutes(app: FastifyInstance, ctx: ServerContext
   });
 
   app.get('/api/prompt', async () => {
-    const url = `http://${ctx.config.host === '0.0.0.0' ? '127.0.0.1' : ctx.config.host}:${ctx.config.port}/mcp`;
+    const url = publicUrl(ctx);
     const prompt = buildPrompt(ctx, url);
     return { prompt };
   });
@@ -145,16 +151,16 @@ ${cmds.map(c=>`<tr><td><code>${c.id}</code></td><td>${escapeHtml(c.command)}</td
 </tbody></table></div>
 <div class="card" style="margin-top:16px"><h2>MCP Connection (copy/paste into any agent)</h2>
 <p>Transport: Streamable HTTP. Endpoint:</p>
-<pre id="endpoint" style="white-space:pre-wrap;word-break:break-all">${`http://${ctx.config.host === '0.0.0.0' ? '127.0.0.1' : ctx.config.host}:${ctx.config.port}/mcp`}</pre>
+<pre id="endpoint" style="white-space:pre-wrap;word-break:break-all">${publicUrl(ctx)}</pre>
 <button class="btn" onclick="copyEndpoint()">Copy Endpoint</button>
 <p>Agent config snippet:</p>
-<pre id="snippet" style="white-space:pre-wrap">${JSON.stringify({ mcpServers: { 'system-mcp': { type: 'streamable-http', url: `http://${ctx.config.host === '0.0.0.0' ? '127.0.0.1' : ctx.config.host}:${ctx.config.port}/mcp` } } }, null, 2)}</pre>
+<pre id="snippet" style="white-space:pre-wrap">${JSON.stringify({ mcpServers: { 'system-mcp': { type: 'streamable-http', url: publicUrl(ctx) } } }, null, 2)}</pre>
 <button class="btn" onclick="copySnippet()">Copy Snippet</button>
 <p>Available tools: list_files, read_file, write_file, edit_file, create_directory, move_file, delete_file, search_files, execute_command, get_command_status, terminate_command, get_system_info, git_status, git_diff, list_processes</p>
 </div>
 <div class="card" style="margin-top:16px"><h2>Copy-Paste Ready Prompt (for any AI agent)</h2>
 <p>Paste this into any agent so it can connect and use all tools:</p>
-<pre id="prompt" style="white-space:pre-wrap;max-height:300px;overflow:auto">${escapeHtml(buildPrompt(ctx, `http://${ctx.config.host === '0.0.0.0' ? '127.0.0.1' : ctx.config.host}:${ctx.config.port}/mcp`))}</pre>
+<pre id="prompt" style="white-space:pre-wrap;max-height:300px;overflow:auto">${escapeHtml(buildPrompt(ctx, publicUrl(ctx)))}</pre>
 <button class="btn" onclick="copyPrompt()">Copy Prompt</button>
 </div>
 <div class="card" style="margin-top:16px"><h2>Controls</h2>
