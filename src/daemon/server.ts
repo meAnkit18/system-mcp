@@ -15,6 +15,7 @@ export async function buildServer(ctx: ServerContext) {
 
   // Rate limit middleware
   app.addHook('onRequest', async (req, reply) => {
+    if (req.method === 'OPTIONS') return; // handle in CORS hook
     const key = req.ip ?? 'local';
     const r = limiter.check(key);
     if (!r.allowed) {
@@ -29,8 +30,25 @@ export async function buildServer(ctx: ServerContext) {
     }
   });
 
-  // Security headers
-  app.addHook('onSend', async (_req, reply) => {
+  // CORS + Private Network Access (for browser-based agents like Perchance)
+  app.addHook('onRequest', async (req, reply) => {
+    if (req.method === 'OPTIONS') {
+      reply.code(204);
+      reply.header('Access-Control-Allow-Origin', '*');
+      reply.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, DELETE');
+      reply.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, Mcp-Session-Id, Last-Event-ID');
+      reply.header('Access-Control-Allow-Private-Network', 'true');
+      reply.header('Access-Control-Max-Age', '86400');
+      await reply.send();
+    }
+  });
+
+  app.addHook('onSend', async (req, reply) => {
+    reply.header('Access-Control-Allow-Origin', '*');
+    reply.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, DELETE');
+    reply.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, Mcp-Session-Id, Last-Event-ID');
+    reply.header('Access-Control-Allow-Private-Network', 'true');
+    reply.header('Access-Control-Expose-Headers', 'Mcp-Session-Id');
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('X-Frame-Options', 'DENY');
     reply.header('Referrer-Policy', 'no-referrer');
