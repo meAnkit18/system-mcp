@@ -64,7 +64,7 @@ echo "  Open the Dashboard URL above in your browser."
 echo "============================================"
 echo
 
-# Optional: start a public tunnel automatically if cloudflared is available
+# Optional: start a public tunnel automatically (no cloudflared/ngrok required)
 TUNNEL_LOG=""
 TUNNEL_PID=""
 if command -v cloudflared >/dev/null 2>&1; then
@@ -83,9 +83,26 @@ if command -v cloudflared >/dev/null 2>&1; then
         fi
         sleep 1
     done
+elif command -v npx >/dev/null 2>&1; then
+    echo "[INFO] Using localtunnel (no cloudflared/ngrok needed)..."
+    TUNNEL_LOG="$(mktemp)"
+    npx --yes localtunnel --port 8787 >"$TUNNEL_LOG" 2>&1 &
+    TUNNEL_PID=$!
+    for i in $(seq 1 40); do
+        TUNNEL_URL=$(grep -oE 'https://[a-zA-Z0-9-]+\.loca\.lt' "$TUNNEL_LOG" | head -1)
+        if [ -n "$TUNNEL_URL" ]; then
+            echo "============================================"
+            echo "  PUBLIC (HTTPS) MCP URL: $TUNNEL_URL/mcp"
+            echo "  Use this URL in browser-based agents."
+            echo "============================================"
+            break
+        fi
+        sleep 1
+    done
 else
-    echo "[INFO] cloudflared not installed. For browser agents, install cloudflared or run:"
-    echo "       cloudflared tunnel --url http://127.0.0.1:8787"
+    echo "[INFO] No tunnel tool found. For browser agents, install one of:"
+    echo "       npm i -g localtunnel   (then: lt --port 8787)"
+    echo "       or: ssh -R 80:localhost:8787 nokey@localhost.run"
 fi
 
 cleanup() {
