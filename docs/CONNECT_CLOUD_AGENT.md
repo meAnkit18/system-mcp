@@ -11,6 +11,22 @@ Steps:
    `<tunnel-url>/mcp`.
 4. Use the dashboard to approve destructive operations.
 
+## Browser-based agents (Perchance, etc.)
+
+The server now sends CORS and Private Network Access headers and handles OPTIONS
+preflight, so a browser page may call `http://127.0.0.1:8787/mcp` directly. If your
+browser still blocks mixed content (https page -> http localhost), expose the server
+through a tunnel and use the resulting HTTPS URL:
+
+```bash
+# cloudflared
+cloudflared tunnel --url http://127.0.0.1:8787
+# or ngrok
+ngrok http 8787
+```
+
+Then point the agent at `https://<tunnel-host>/mcp`.
+
 ## Planned (Phase 2)
 
 Authenticated outbound WebSocket from the daemon to a gateway, device registration,
