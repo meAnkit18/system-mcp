@@ -1,0 +1,140 @@
+import { FastifyInstance } from 'fastify';
+import { ServerContext } from '../mcp/context.js';
+
+export function registerDashboardRoutes(app: FastifyInstance, ctx: ServerContext): void {
+  app.get('/', async (_req, reply) => {
+    reply.type('text/html').send(renderDashboard(ctx));
+  });
+
+  app.get('/dashboard', async (_req, reply) => {
+    reply.type('text/html').send(renderDashboard(ctx));
+  });
+
+  // API endpoints
+  app.get('/api/status', async () => {
+    const sessions = (ctx as any).__sessions as Map<string, any> | undefined;
+    return {
+      uptime: Math.round((Date.now() - ctx.startedAt) / 1000),
+      workspaces: ctx.config.workspaces,
+      remoteEnabled: ctx.config.remote.enabled,
+      sessions: sessions ? sessions.size : 0,
+      pendingApprovals: ctx.approvals.listPending().length,
+      runningCommands: ctx.store.running().length,
+    };
+  });
+
+  app.get('/api/approvals', async () => ctx.approvals.listPending());
+
+  app.post('/api/approvals/:id/approve', async (req, reply) => {
+    const id = (req.params as any).id;
+    const r = ctx.approvals.approve(id);
+    if (!r) return reply.code(404).send({ error: 'not found' });
+    ctx.audit.record({ action: 'approval_approved', actor: 'dashboard', target: id, result: 'success' });
+    return { approval: r };
+  });
+
+  app.post('/api/approvals/:id/deny', async (req, reply) => {
+    const id = (req.params as any).id;
+    const r = ctx.approvals.deny(id);
+    if (!r) return reply.code(404).send({ error: 'not found' });
+    ctx.audit.record({ action: 'approval_denied', actor: 'dashboard', target: id, result: 'success' });
+    return { approval: r };
+  });
+
+  app.get('/api/commands', async () => ctx.store.list().map((c) => ({
+    id: c.id,
+    command: c.command,
+    status: c.status,
+    startedAt: new Date(c.startedAt).toISOString(),
+    finishedAt: c.finishedAt ? new Date(c.finishedAt).toISOString() : null,
+    exitCode: c.exitCode,
+  })));
+
+  app.post('/api/commands/:id/stop', async (req, reply) => {
+    const id = (req.params as any).id;
+    const { terminateCommand } = await import('../execution/commandRunner.js');
+    const ok2 = terminateCommand(id, ctx.store, ctx.registry);
+    ctx.audit.record({ action: 'terminate_command', actor: 'dashboard', target: id, result: ok2 ? 'success' : 'failure' });
+    return { terminated: ok2 };
+  });
+
+  app.post('/api/disconnect', async () => {
+    // terminate all MCP sessions and remote (none yet) - emergency disconnect
+    const sessions = (ctx as any).__sessions as Map<string, any> | undefined;
+    if (sessions) {
+      for (const [sid, s] of sessions) {
+        try { await s.transport.close(); } catch {}
+        try { await s.server.close(); } catch {}
+        sessions.delete(sid);
+      }
+    }
+    ctx.registry.killAll();
+    ctx.audit.record({ action: 'emergency_disconnect', actor: 'dashboard', result: 'success' });
+    return { disconnected: true };
+  });
+
+  app.post('/api/revoke', async () => {
+    // Phase 1: disable remote (already disabled) + disconnect
+    ctx.config.remote.enabled = false;
+    ctx.audit.record({ action: 'revoke_access', actor: 'dashboard', result: 'success' });
+    return { revoked: true };
+  });
+}
+
+function renderDashboard(ctx: ServerContext): string {
+  const sessions = (ctx as any).__sessions as Map<string, any> | undefined;
+  const pending = ctx.approvals.listPending();
+  const running = ctx.store.running();
+  const cmds = ctx.store.list().slice(-20).reverse();
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>system-mcp dashboard</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:0;padding:24px;background:#0f172a;color:#e2e8f0}
+h1{margin:0 0 16px} .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.card{background:#1e293b;border-radius:12px;padding:16px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.card h2{margin:0 0 8px;font-size:16px;color:#94a3b8}
+.stat{font-size:28px;font-weight:700}
+.row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #334155}
+.btn{background:#3b82f6;color:#fff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;margin:4px}
+.btn.danger{background:#ef4444}
+.btn.warn{background:#f59e0b}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:6px;text-align:left;border-bottom:1px solid #334155}
+code{background:#0f172a;padding:2px 6px;border-radius:4px}
+</style>
+</head>
+<body>
+<h1>system-mcp — Local Dashboard</h1>
+<div class="grid">
+  <div class="card"><h2>Connection Status</h2><div class="stat" id="status">online</div><div>Remote: ${ctx.config.remote.enabled ? 'ENABLED' : 'disabled'}</div><div>Uptime: ${Math.round((Date.now()-ctx.startedAt)/1000)}s</div><div>MCP sessions: ${sessions ? sessions.size : 0}</div></div>
+  <div class="card"><h2>Workspaces</h2>${ctx.config.workspaces.map(w=>`<div><code>${w}</code></div>`).join('')}</div>
+  <div class="card"><h2>Pending Approvals</h2>${pending.length===0?'<div>None</div>':pending.map(a=>`<div class="row"><span>${a.description}</span><span><button class="btn" onclick="approve('${a.id}')">Approve</button><button class="btn danger" onclick="deny('${a.id}')">Deny</button></span></div>`).join('')}</div>
+  <div class="card"><h2>Running Commands</h2>${running.length===0?'<div>None</div>':running.map(c=>`<div class="row"><span>${c.command}</span><button class="btn danger" onclick="stop('${c.id}')">Stop</button></div>`).join('')}</div>
+</div>
+<div class="card" style="margin-top:16px"><h2>Recent Commands</h2>
+<table><thead><tr><th>ID</th><th>Command</th><th>Status</th><th>Exit</th></tr></thead><tbody>
+${cmds.map(c=>`<tr><td><code>${c.id}</code></td><td>${escapeHtml(c.command)}</td><td>${c.status}</td><td>${c.exitCode ?? ''}</td></tr>`).join('')}
+</tbody></table></div>
+<div class="card" style="margin-top:16px"><h2>Controls</h2>
+<button class="btn danger" onclick="disconnect()">Emergency Disconnect</button>
+<button class="btn warn" onclick="revoke()">Revoke Remote Access</button>
+</div>
+<script>
+async function post(u){const r=await fetch(u,{method:'POST'});return r.json();}
+function approve(id){post('/api/approvals/'+id+'/approve').then(()=>location.reload());}
+function deny(id){post('/api/approvals/'+id+'/deny').then(()=>location.reload());}
+function stop(id){post('/api/commands/'+id+'/stop').then(()=>location.reload());}
+function disconnect(){if(confirm('Disconnect all sessions?'))post('/api/disconnect').then(()=>location.reload());}
+function revoke(){post('/api/revoke').then(()=>location.reload());}
+setTimeout(()=>location.reload(),5000);
+</script>
+</body></html>`;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}

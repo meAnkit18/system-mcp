@@ -1,0 +1,20 @@
+{
+  "host": "127.0.0.1",
+  "port": 8787,
+  "workspaces": ["/home/you/projects"],
+  "dataDir": "~/.system-mcp",
+  "remote": {
+    "enabled": false
+  },
+  "approvals": {
+    "dangerousCommands": "require-approval",
+    "destructiveFileOps": "require-approval"
+  },
+  "limits": {
+    "maxFileSizeBytes": 10485760,
+    "maxCommandOutputBytes": 10485760,
+    "commandTimeoutMs": 120000,
+    "maxConcurrentCommands": 8,
+    "rateLimitPerMinute": 300
+  }
+}

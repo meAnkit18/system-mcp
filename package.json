@@ -1,0 +1,36 @@
+{
+  "name": "system-mcp",
+  "version": "0.1.0",
+  "description": "Universal local AI agent bridge: MCP server exposing local computer capabilities to cloud agents",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "system-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "fastify": "^5.12.7",
+    "zod": "^4.6.7",
+    "pino": "^10.4.0",
+    "dotenv": "^18.0.8",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "tsx": "^4.23.15",
+    "vitest": "^5.0.5",
+    "@types/node": "^24.0.0",
+    "@types/ws": "^8.18.1"
+  }
+}
