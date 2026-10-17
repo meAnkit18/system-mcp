@@ -1,0 +1,70 @@
+@echo off
+setlocal enabledelayedexpansion
+
+echo ============================================
+echo   system-mcp - Local AI Agent Bridge
+echo ============================================
+echo.
+
+REM Check Node.js
+where node >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Node.js is not installed or not in PATH.
+    echo Please install Node.js from https://nodejs.org/ and re-run.
+    pause
+    exit /b 1
+)
+
+REM Check npm
+where npm >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] npm is not installed or not in PATH.
+    pause
+    exit /b 1
+)
+
+REM Install dependencies if needed
+if not exist "node_modules" (
+    echo [INFO] Installing dependencies...
+    call npm install
+    if errorlevel 1 (
+        echo [ERROR] npm install failed.
+        pause
+        exit /b 1
+    )
+)
+
+REM Ask for workspace if not provided via env
+if "%SYSTEM_MCP_WORKSPACES%"=="" (
+    set /p WORKSPACE="Enter your projects folder path: "
+    if "!WORKSPACE!"=="" (
+        echo [ERROR] No workspace provided.
+        pause
+        exit /b 1
+    )
+    set "SYSTEM_MCP_WORKSPACES=!WORKSPACE!"
+)
+
+echo.
+echo [INFO] Workspace: %SYSTEM_MCP_WORKSPACES%
+echo [INFO] Starting system-mcp...
+echo.
+
+REM Build if dist missing
+if not exist "dist\index.js" (
+    echo [INFO] Building TypeScript...
+    call npm run build
+    if errorlevel 1 (
+        echo [ERROR] Build failed.
+        pause
+        exit /b 1
+    )
+)
+
+REM Start server
+start "" cmd /c "timeout /t 3 >nul && start http://127.0.0.1:8787/dashboard"
+call npm start
+
+echo.
+echo [INFO] Server stopped.
+pause
