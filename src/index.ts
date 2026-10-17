@@ -2,6 +2,7 @@
 import { loadConfig } from './daemon/config.js';
 import { buildServer } from './daemon/server.js';
 import { ServerContext } from './mcp/context.js';
+import { createMcpServer } from './mcp/mcpServer.js';
 import { CommandStore } from './storage/commandStore.js';
 import { ProcessRegistry } from './execution/processRegistry.js';
 import { AuditLog } from './security/audit.js';
@@ -22,7 +23,11 @@ async function main() {
     audit: new AuditLog(config.auditLogPath!),
     approvals: new ApprovalManager(),
     startedAt: Date.now(),
+    toolHandlers: new Map(),
   };
+
+  // Register tool handlers once so REST/agent adapters can invoke them without an MCP session.
+  createMcpServer(ctx);
 
   const app = await buildServer(ctx);
 

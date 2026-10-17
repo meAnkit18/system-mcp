@@ -1,10 +1,31 @@
 import { FastifyInstance } from 'fastify';
 import { ServerContext } from '../mcp/context.js';
+import { createMcpServer } from '../mcp/mcpServer.js';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 
 function publicUrl(ctx: ServerContext): string {
   const env = process.env.SYSTEM_MCP_PUBLIC_URL;
   if (env) return env.replace(/\/$/, '') + '/mcp';
   return `http://${ctx.config.host === '0.0.0.0' ? '127.0.0.1' : ctx.config.host}:${ctx.config.port}/mcp`;
+}
+
+async function callToolInProcess(ctx: ServerContext, tool: string, args: any): Promise<any> {
+  const server = createMcpServer(ctx);
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  const client = new Client({ name: 'rest-adapter', version: '1.0' });
+  await client.connect(clientTransport);
+  try {
+    const res: any = await client.callTool({ name: tool, arguments: args ?? {} });
+    const text = res?.content?.[0]?.text;
+    let parsed: any = null;
+    try { parsed = text ? JSON.parse(text) : null; } catch { parsed = text; }
+    return { isError: !!res?.isError, result: parsed ?? res };
+  } finally {
+    await client.close();
+    await server.close();
+  }
 }
 
 export function registerDashboardRoutes(app: FastifyInstance, ctx: ServerContext): void {
@@ -17,6 +38,46 @@ export function registerDashboardRoutes(app: FastifyInstance, ctx: ServerContext
   });
 
   // API endpoints
+  // Perchance-friendly adapter: call any MCP tool via simple REST (GET or POST)
+  app.get('/api/px', async (req, reply) => {
+    const q = req.query as any;
+    const tool = q.tool;
+    if (!tool) return reply.code(400).send({ error: 'missing tool' });
+    let args: any = {};
+    if (q.args) {
+      const raw = String(q.args);
+      const candidates = [raw];
+      // base64 (standard)
+      try { candidates.push(Buffer.from(raw, 'base64').toString('utf8')); } catch {}
+      // base64url
+      try {
+        const b64 = raw.replace(/-/g, '+').replace(/_/g, '/');
+        candidates.push(Buffer.from(b64, 'base64').toString('utf8'));
+      } catch {}
+      for (const c of candidates) {
+        try { const o = JSON.parse(c); if (o && typeof o === 'object') { args = o; break; } } catch {}
+      }
+    }
+    try {
+      const out = await callToolInProcess(ctx, tool, args);
+      return out;
+    } catch (e: any) {
+      return reply.code(500).send({ error: e?.message ?? String(e) });
+    }
+  });
+
+  app.post('/api/px', async (req, reply) => {
+    const body = (req.body ?? {}) as any;
+    const tool = body.tool;
+    if (!tool) return reply.code(400).send({ error: 'missing tool' });
+    try {
+      const out = await callToolInProcess(ctx, tool, body.args ?? {});
+      return out;
+    } catch (e: any) {
+      return reply.code(500).send({ error: e?.message ?? String(e) });
+    }
+  });
+
   app.get('/api/status', async () => {
     const sessions = (ctx as any).__sessions as Map<string, any> | undefined;
     return {
@@ -221,7 +282,16 @@ USAGE RULES
 6. Report changed files and command output summaries when done.
 
 WORKFLOW EXAMPLE
-To create a React app: inspect the project directory, create files, run npm commands, read output, fix errors, summarize changes.`;
+To create a React app: inspect the project directory, create files, run npm commands, read output, fix errors, summarize changes.
+
+PERCHANCE / FETCH-ONLY AGENTS
+If your agent can only fetch URLs (no MCP tool binding), use the REST adapter:
+  GET  ${url.replace('/mcp','/api/px')}?tool=TOOL_NAME&args=URL_ENCODED_JSON
+  POST ${url.replace('/mcp','/api/px')}  body: {"tool":"TOOL_NAME","args":{...}}
+Examples:
+  ${url.replace('/mcp','/api/px')}?tool=list_files&args=%7B%22path%22%3A%22%2Fhome%2Fdevdevil%2Fdevelopment%2Fsystem-mcp-test%22%7D
+  ${url.replace('/mcp','/api/px')}?tool=get_system_info
+The response is JSON: {"isError":false,"result":{...}}.`;
 }
 
 function escapeHtml(s: string): string {

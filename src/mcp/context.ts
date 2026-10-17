@@ -11,4 +11,5 @@ export interface ServerContext {
   audit: AuditLog;
   approvals: ApprovalManager;
   startedAt: number;
+  toolHandlers: Map<string, (args: any) => Promise<any>>;
 }
