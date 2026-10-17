@@ -31,6 +31,10 @@ if [ ! -d "node_modules" ]; then
     npm install
 fi
 
+# Port (allow override)
+PORT="${SYSTEM_MCP_PORT:-8787}"
+export SYSTEM_MCP_PORT="$PORT"
+
 # Ask for workspace if not provided via env
 if [ -z "$SYSTEM_MCP_WORKSPACES" ]; then
     read -rp "Enter your projects folder path: " WORKSPACE
@@ -56,9 +60,9 @@ export SYSTEM_MCP_HOST="$HOST"
 
 # Print the URL clearly
 echo "============================================"
-echo "  Listening on: $HOST:8787"
-echo "  Dashboard: http://127.0.0.1:8787/dashboard"
-echo "  MCP endpoint: http://127.0.0.1:8787/mcp"
+echo "  Listening on: $HOST:$PORT"
+echo "  Dashboard: http://127.0.0.1:$PORT/dashboard"
+echo "  MCP endpoint: http://127.0.0.1:$PORT/mcp"
 echo "  (0.0.0.0 is not a browsable address; use 127.0.0.1 or your machine IP)"
 echo "  Open the Dashboard URL above in your browser."
 echo "============================================"
@@ -70,7 +74,7 @@ TUNNEL_PID=""
 if command -v cloudflared >/dev/null 2>&1; then
     echo "[INFO] cloudflared found - starting public tunnel..."
     TUNNEL_LOG="$(mktemp)"
-    cloudflared tunnel --url http://127.0.0.1:8787 >"$TUNNEL_LOG" 2>&1 &
+    cloudflared tunnel --url http://127.0.0.1:$PORT >"$TUNNEL_LOG" 2>&1 &
     TUNNEL_PID=$!
     for i in $(seq 1 30); do
         TUNNEL_URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$TUNNEL_LOG" | head -1)
@@ -86,7 +90,7 @@ if command -v cloudflared >/dev/null 2>&1; then
 elif command -v npx >/dev/null 2>&1; then
     echo "[INFO] Using localtunnel (no cloudflared/ngrok needed)..."
     TUNNEL_LOG="$(mktemp)"
-    npx --yes localtunnel --port 8787 >"$TUNNEL_LOG" 2>&1 &
+    npx --yes localtunnel --port $PORT >"$TUNNEL_LOG" 2>&1 &
     TUNNEL_PID=$!
     for i in $(seq 1 40); do
         TUNNEL_URL=$(grep -oE 'https://[a-zA-Z0-9-]+\.loca\.lt' "$TUNNEL_LOG" | head -1)
@@ -112,7 +116,7 @@ cleanup() {
 trap cleanup EXIT
 
 # Open dashboard in background (best effort)
-(sleep 3 && (xdg-open http://127.0.0.1:8787/dashboard 2>/dev/null || sensible-browser http://127.0.0.1:8787/dashboard 2>/dev/null || true)) &
+(sleep 3 && (xdg-open http://127.0.0.1:$PORT/dashboard 2>/dev/null || sensible-browser http://127.0.0.1:$PORT/dashboard 2>/dev/null || true)) &
 
 # Start server
 npm start
