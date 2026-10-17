@@ -23,6 +23,24 @@ export function registerDashboardRoutes(app: FastifyInstance, ctx: ServerContext
     };
   });
 
+  app.get('/api/connection', async () => {
+    const url = `http://${ctx.config.host === '0.0.0.0' ? '127.0.0.1' : ctx.config.host}:${ctx.config.port}/mcp`;
+    const tools = [
+      'list_files','read_file','write_file','edit_file','create_directory','move_file',
+      'delete_file','search_files','execute_command','get_command_status','terminate_command',
+      'get_system_info','git_status','git_diff','list_processes'
+    ];
+    return {
+      name: 'system-mcp',
+      transport: 'streamable-http',
+      endpoint: url,
+      tools,
+      mcpServersConfig: {
+        'system-mcp': { type: 'streamable-http', url },
+      },
+    };
+  });
+
   app.get('/api/approvals', async () => ctx.approvals.listPending());
 
   app.post('/api/approvals/:id/approve', async (req, reply) => {
@@ -119,6 +137,15 @@ code{background:#0f172a;padding:2px 6px;border-radius:4px}
 <table><thead><tr><th>ID</th><th>Command</th><th>Status</th><th>Exit</th></tr></thead><tbody>
 ${cmds.map(c=>`<tr><td><code>${c.id}</code></td><td>${escapeHtml(c.command)}</td><td>${c.status}</td><td>${c.exitCode ?? ''}</td></tr>`).join('')}
 </tbody></table></div>
+<div class="card" style="margin-top:16px"><h2>MCP Connection (copy/paste into any agent)</h2>
+<p>Transport: Streamable HTTP. Endpoint:</p>
+<pre id="endpoint" style="white-space:pre-wrap;word-break:break-all">${`http://${ctx.config.host === '0.0.0.0' ? '127.0.0.1' : ctx.config.host}:${ctx.config.port}/mcp`}</pre>
+<button class="btn" onclick="copyEndpoint()">Copy Endpoint</button>
+<p>Agent config snippet:</p>
+<pre id="snippet" style="white-space:pre-wrap">${JSON.stringify({ mcpServers: { 'system-mcp': { type: 'streamable-http', url: `http://${ctx.config.host === '0.0.0.0' ? '127.0.0.1' : ctx.config.host}:${ctx.config.port}/mcp` } } }, null, 2)}</pre>
+<button class="btn" onclick="copySnippet()">Copy Snippet</button>
+<p>Available tools: list_files, read_file, write_file, edit_file, create_directory, move_file, delete_file, search_files, execute_command, get_command_status, terminate_command, get_system_info, git_status, git_diff, list_processes</p>
+</div>
 <div class="card" style="margin-top:16px"><h2>Controls</h2>
 <button class="btn danger" onclick="disconnect()">Emergency Disconnect</button>
 <button class="btn warn" onclick="revoke()">Revoke Remote Access</button>
@@ -130,6 +157,8 @@ function deny(id){post('/api/approvals/'+id+'/deny').then(()=>location.reload())
 function stop(id){post('/api/commands/'+id+'/stop').then(()=>location.reload());}
 function disconnect(){if(confirm('Disconnect all sessions?'))post('/api/disconnect').then(()=>location.reload());}
 function revoke(){post('/api/revoke').then(()=>location.reload());}
+function copyEndpoint(){navigator.clipboard.writeText(document.getElementById('endpoint').innerText);alert('Endpoint copied');}
+function copySnippet(){navigator.clipboard.writeText(document.getElementById('snippet').innerText);alert('Snippet copied');}
 setTimeout(()=>location.reload(),5000);
 </script>
 </body></html>`;
