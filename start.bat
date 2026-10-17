@@ -6,6 +6,16 @@ echo   system-mcp - Local AI Agent Bridge
 echo ============================================
 echo.
 
+REM Auto-update from GitHub (best effort)
+if exist ".git" (
+    where git >nul 2>&1
+    if not errorlevel 1 (
+        echo [INFO] Pulling latest changes...
+        git pull --ff-only 2>nul
+        if errorlevel 1 echo [WARN] git pull failed; continuing.
+    )
+)
+
 REM Check Node.js
 where node >nul 2>&1
 if errorlevel 1 (
@@ -57,6 +67,16 @@ if errorlevel 1 (
     echo [ERROR] Build failed.
     pause
     exit /b 1
+)
+
+REM Optional public tunnel if cloudflared is available
+where cloudflared >nul 2>&1
+if not errorlevel 1 (
+    echo [INFO] cloudflared found - starting public tunnel in new window...
+    start "system-mcp-tunnel" cmd /k "cloudflared tunnel --url http://127.0.0.1:8787"
+) else (
+    echo [INFO] cloudflared not installed. For browser agents, install cloudflared or run:
+    echo        cloudflared tunnel --url http://127.0.0.1:8787
 )
 
 REM Start server

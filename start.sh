@@ -6,6 +6,12 @@ echo "  system-mcp - Local AI Agent Bridge"
 echo "============================================"
 echo
 
+# Auto-update from GitHub (best effort)
+if [ -d ".git" ] && command -v git >/dev/null 2>&1; then
+    echo "[INFO] Pulling latest changes..."
+    git pull --ff-only 2>/dev/null || echo "[WARN] git pull failed (offline or conflicts); continuing."
+fi
+
 # Check Node.js
 if ! command -v node >/dev/null 2>&1; then
     echo "[ERROR] Node.js is not installed or not in PATH."
@@ -51,6 +57,36 @@ echo "  MCP endpoint: http://127.0.0.1:8787/mcp"
 echo "  Open the Dashboard URL above in your browser."
 echo "============================================"
 echo
+
+# Optional: start a public tunnel automatically if cloudflared is available
+TUNNEL_LOG=""
+TUNNEL_PID=""
+if command -v cloudflared >/dev/null 2>&1; then
+    echo "[INFO] cloudflared found - starting public tunnel..."
+    TUNNEL_LOG="$(mktemp)"
+    cloudflared tunnel --url http://127.0.0.1:8787 >"$TUNNEL_LOG" 2>&1 &
+    TUNNEL_PID=$!
+    for i in $(seq 1 30); do
+        TUNNEL_URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$TUNNEL_LOG" | head -1)
+        if [ -n "$TUNNEL_URL" ]; then
+            echo "============================================"
+            echo "  PUBLIC (HTTPS) MCP URL: $TUNNEL_URL/mcp"
+            echo "  Use this URL in browser-based agents."
+            echo "============================================"
+            break
+        fi
+        sleep 1
+    done
+else
+    echo "[INFO] cloudflared not installed. For browser agents, install cloudflared or run:"
+    echo "       cloudflared tunnel --url http://127.0.0.1:8787"
+fi
+
+cleanup() {
+    if [ -n "$TUNNEL_PID" ]; then kill "$TUNNEL_PID" 2>/dev/null || true; fi
+    [ -n "$TUNNEL_LOG" ] && rm -f "$TUNNEL_LOG"
+}
+trap cleanup EXIT
 
 # Open dashboard in background (best effort)
 (sleep 3 && (xdg-open http://127.0.0.1:8787/dashboard 2>/dev/null || sensible-browser http://127.0.0.1:8787/dashboard 2>/dev/null || true)) &
