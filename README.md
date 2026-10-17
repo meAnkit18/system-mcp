@@ -13,6 +13,23 @@ by default and there is no outbound gateway connection yet.
 
 ## Quick start
 
+### Easiest (one command)
+
+Linux/macOS:
+```bash
+chmod +x start.sh
+./start.sh
+```
+
+Windows:
+```bat
+start.bat
+```
+
+The script installs dependencies, asks for your projects folder, builds, starts the server, and opens the dashboard.
+
+### Manual
+
 ```bash
 npm install
 cp config.example.json config.json
