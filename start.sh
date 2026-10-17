@@ -50,10 +50,16 @@ echo
 echo "[INFO] Building TypeScript..."
 npm run build
 
+# Resolve host (0.0.0.0 means all interfaces; browser uses 127.0.0.1)
+HOST="${SYSTEM_MCP_HOST:-127.0.0.1}"
+export SYSTEM_MCP_HOST="$HOST"
+
 # Print the URL clearly
 echo "============================================"
+echo "  Listening on: $HOST:8787"
 echo "  Dashboard: http://127.0.0.1:8787/dashboard"
 echo "  MCP endpoint: http://127.0.0.1:8787/mcp"
+echo "  (0.0.0.0 is not a browsable address; use 127.0.0.1 or your machine IP)"
 echo "  Open the Dashboard URL above in your browser."
 echo "============================================"
 echo
