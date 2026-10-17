@@ -41,6 +41,12 @@ export function registerDashboardRoutes(app: FastifyInstance, ctx: ServerContext
     };
   });
 
+  app.get('/api/prompt', async () => {
+    const url = `http://${ctx.config.host === '0.0.0.0' ? '127.0.0.1' : ctx.config.host}:${ctx.config.port}/mcp`;
+    const prompt = buildPrompt(ctx, url);
+    return { prompt };
+  });
+
   app.get('/api/approvals', async () => ctx.approvals.listPending());
 
   app.post('/api/approvals/:id/approve', async (req, reply) => {
@@ -146,6 +152,11 @@ ${cmds.map(c=>`<tr><td><code>${c.id}</code></td><td>${escapeHtml(c.command)}</td
 <button class="btn" onclick="copySnippet()">Copy Snippet</button>
 <p>Available tools: list_files, read_file, write_file, edit_file, create_directory, move_file, delete_file, search_files, execute_command, get_command_status, terminate_command, get_system_info, git_status, git_diff, list_processes</p>
 </div>
+<div class="card" style="margin-top:16px"><h2>Copy-Paste Ready Prompt (for any AI agent)</h2>
+<p>Paste this into any agent so it can connect and use all tools:</p>
+<pre id="prompt" style="white-space:pre-wrap;max-height:300px;overflow:auto">${escapeHtml(buildPrompt(ctx, `http://${ctx.config.host === '0.0.0.0' ? '127.0.0.1' : ctx.config.host}:${ctx.config.port}/mcp`))}</pre>
+<button class="btn" onclick="copyPrompt()">Copy Prompt</button>
+</div>
 <div class="card" style="margin-top:16px"><h2>Controls</h2>
 <button class="btn danger" onclick="disconnect()">Emergency Disconnect</button>
 <button class="btn warn" onclick="revoke()">Revoke Remote Access</button>
@@ -159,9 +170,52 @@ function disconnect(){if(confirm('Disconnect all sessions?'))post('/api/disconne
 function revoke(){post('/api/revoke').then(()=>location.reload());}
 function copyEndpoint(){navigator.clipboard.writeText(document.getElementById('endpoint').innerText);alert('Endpoint copied');}
 function copySnippet(){navigator.clipboard.writeText(document.getElementById('snippet').innerText);alert('Snippet copied');}
+function copyPrompt(){navigator.clipboard.writeText(document.getElementById('prompt').innerText);alert('Prompt copied');}
 setTimeout(()=>location.reload(),5000);
 </script>
 </body></html>`;
+}
+
+function buildPrompt(ctx: ServerContext, url: string): string {
+  return `You have access to a local computer through the "system-mcp" MCP server.
+
+CONNECTION
+- Transport: Streamable HTTP (MCP)
+- Endpoint: ${url}
+- Add this to your MCP client config:
+  {
+    "mcpServers": {
+      "system-mcp": { "type": "streamable-http", "url": "${url}" }
+    }
+  }
+
+AVAILABLE TOOLS
+- list_files(path?, recursive?, maxDepth?, includeHidden?, limit?): list files/directories in a workspace.
+- read_file(path, offset?, limit?, maxBytes?): read file contents (text or base64 for binary).
+- write_file(path, content, encoding?, createParents?, overwrite?, approvalId?): create/overwrite a file.
+- edit_file(path, edits[{oldString,newString,replaceAll?}], approvalId?): apply targeted replacements.
+- create_directory(path): create a directory (and parents).
+- move_file(source, destination, overwrite?, approvalId?): move/rename.
+- delete_file(path, recursive?, approvalId?): delete a file or directory (approval required by default).
+- search_files(root?, query, filePattern?, maxResults?, includeHidden?): search filenames and contents.
+- execute_command(command, args?, cwd?, timeoutMs?, idempotencyKey?, approvalId?): run a terminal command; returns commandId.
+- get_command_status(commandId): get status + output of a command.
+- terminate_command(commandId): stop a running command.
+- get_system_info(): OS, arch, disk, runtimes.
+- git_status(cwd?): repository status.
+- git_diff(cwd?, path?, staged?, stat?): repository diff.
+- list_processes(): processes managed by the server.
+
+USAGE RULES
+1. All file paths must be inside configured workspaces; paths outside are rejected.
+2. Destructive file ops and dangerous commands may require user approval. If a tool returns status "pending_approval" with an approvalId, tell the user to approve it in the dashboard, then re-run with approvalId.
+3. Long-running commands return a commandId immediately with status "running". Poll get_command_status until completed/failed. Do not block.
+4. Use idempotencyKey when retrying execute_command to avoid duplicates.
+5. Never claim success until the tool confirms it.
+6. Report changed files and command output summaries when done.
+
+WORKFLOW EXAMPLE
+To create a React app: inspect the project directory, create files, run npm commands, read output, fix errors, summarize changes.`;
 }
 
 function escapeHtml(s: string): string {
