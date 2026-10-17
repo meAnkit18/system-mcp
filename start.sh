@@ -98,6 +98,31 @@ try_cloudflared() {
     return 1
 }
 
+try_localhost_run() {
+    if ! command -v ssh >/dev/null 2>&1; then return 1; fi
+    echo "[INFO] Trying localhost.run (SSH tunnel, no account)..."
+    TUNNEL_LOG="$(mktemp)"
+    ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -R 80:localhost:$PORT nokey@localhost.run >"$TUNNEL_LOG" 2>&1 &
+    TUNNEL_PID=$!
+    for i in $(seq 1 20); do
+        if ! kill -0 "$TUNNEL_PID" 2>/dev/null; then
+            echo "[WARN] localhost.run exited."
+            wait "$TUNNEL_PID" 2>/dev/null || true
+            TUNNEL_PID=""
+            rm -f "$TUNNEL_LOG"
+            return 1
+        fi
+        TUNNEL_URL=$(grep -oE 'https://[a-zA-Z0-9-]+\.lhr\.life' "$TUNNEL_LOG" | head -1)
+        if [ -n "$TUNNEL_URL" ]; then return 0; fi
+        sleep 1
+    done
+    echo "[WARN] localhost.run did not produce a URL in time."
+    kill "$TUNNEL_PID" 2>/dev/null || true
+    TUNNEL_PID=""
+    rm -f "$TUNNEL_LOG"
+    return 1
+}
+
 try_localtunnel() {
     if ! command -v npx >/dev/null 2>&1; then return 1; fi
     echo "[INFO] Trying localtunnel (no cloudflared needed)..."
@@ -123,7 +148,7 @@ try_localtunnel() {
     return 1
 }
 
-if try_cloudflared || try_localtunnel; then
+if try_cloudflared || try_localhost_run || try_localtunnel; then
     echo "============================================"
     echo "  PUBLIC (HTTPS) MCP URL: $TUNNEL_URL/mcp"
     echo "  Use this URL in browser-based agents."
