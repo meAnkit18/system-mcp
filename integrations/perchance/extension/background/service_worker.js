@@ -29,6 +29,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       } else if (msg.type === 'status') {
         const s = await apiFetch('/api/status');
         sendResponse({ ok: true, result: s });
+      } else if (msg.type === 'getPrompt') {
+        const p = await apiFetch('/api/prompt');
+        sendResponse({ ok: true, result: p });
       } else if (msg.type === 'executeToolCall') {
         const r = await apiFetch('/api/tool-call', {
           method: 'POST',
