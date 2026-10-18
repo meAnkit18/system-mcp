@@ -98,7 +98,11 @@ health_ok() {
 # check if running
 if health_ok; then
   # check workspace match
-  CURRENT="$(curl -fsS "http://${HOST}:${PORT}/api/status" 2>/dev/null | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{const j=JSON.parse(d);console.log((j.workspaces||[]).join(","))}catch{console.log("")})' || true)"
+  CURRENT="$(curl -fsS "http://${HOST}:${PORT}/api/status" 2>/dev/null | python3 -c 'import sys,json; d=sys.stdin.read(); 
+try:
+    j=json.loads(d); print(",".join(j.get("workspaces",[])))
+except Exception:
+    print("")' || true)"
   if echo "$CURRENT" | grep -qF "$PROJECT_DIR"; then
     echo "[INFO] Reusing existing daemon (workspace matches)."
   else
@@ -134,7 +138,11 @@ if [ "$DAEMON_STARTED_BY_US" = "1" ]; then
 fi
 
 # --- token ---
-TOKEN="$(curl -fsS "http://${HOST}:${PORT}/api/token" 2>/dev/null | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{console.log(JSON.parse(d).token||"")}catch{console.log("")})' || true)"
+TOKEN="$(curl -fsS "http://${HOST}:${PORT}/api/token" 2>/dev/null | python3 -c 'import sys,json; d=sys.stdin.read();
+try:
+    print(json.loads(d).get("token",""))
+except Exception:
+    print("")' || true)"
 echo "[INFO] Local token retrieved."
 
 # --- prepare extension config ---
