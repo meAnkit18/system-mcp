@@ -11,7 +11,7 @@ export async function buildServer(ctx: ServerContext) {
   const app = Fastify({ logger: false });
 
   const limiter = new RateLimiter(ctx.config.limits.rateLimitPerMinute);
-  const token = process.env.SYSTEM_MCP_TOKEN;
+  const token = ctx.localToken ?? process.env.SYSTEM_MCP_TOKEN;
 
   // Rate limit middleware
   app.addHook('onRequest', async (req, reply) => {
@@ -22,10 +22,32 @@ export async function buildServer(ctx: ServerContext) {
       reply.code(429).send({ error: 'Rate limit exceeded' });
       return;
     }
-    if (token && req.url.startsWith('/mcp')) {
-      const auth = req.headers.authorization;
-      if (auth !== `Bearer ${token}`) {
-        reply.code(401).send({ error: 'Unauthorized' });
+
+    // Origin validation (defense in depth; not sole authorization).
+    const origin = req.headers.origin as string | undefined;
+    if (origin) {
+      const okOrigin =
+        origin === 'null' ||
+        origin.startsWith('http://127.0.0.1') ||
+        origin.startsWith('http://localhost') ||
+        origin.startsWith('chrome-extension://') ||
+        origin.startsWith('https://');
+      if (!okOrigin) {
+        reply.code(403).send({ error: 'Origin not allowed' });
+        return;
+      }
+    }
+
+    // Token enforcement for sensitive endpoints when a token is configured.
+    const sensitive = req.url.startsWith('/mcp') || req.url.startsWith('/api/px') || req.url.startsWith('/api/tool');
+    if (token && sensitive) {
+      const auth = req.headers.authorization as string | undefined;
+      const xtoken = req.headers['x-system-mcp-token'] as string | undefined;
+      const qtoken = (req.query as any)?.token;
+      const provided = auth === `Bearer ${token}` ? token : (xtoken ?? qtoken);
+      if (provided !== token) {
+        reply.code(401).send({ error: 'Unauthorized: missing or invalid local token' });
+        return;
       }
     }
   });

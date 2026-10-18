@@ -12,4 +12,6 @@ export interface ServerContext {
   approvals: ApprovalManager;
   startedAt: number;
   toolHandlers: Map<string, (args: any) => Promise<any>>;
+  localToken?: string;
+  toolCallResults?: Map<string, { result: any; at: number }>;
 }

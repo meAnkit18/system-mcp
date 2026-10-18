@@ -3,6 +3,8 @@ import { ServerContext } from '../mcp/context.js';
 import { createMcpServer } from '../mcp/mcpServer.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { executeToolCall } from '../integrations/perchance/executor.js';
+import { validateToolCall } from '../integrations/perchance/protocol.js';
 
 function publicUrl(ctx: ServerContext): string {
   const env = process.env.SYSTEM_MCP_PUBLIC_URL;
@@ -78,6 +80,41 @@ export function registerDashboardRoutes(app: FastifyInstance, ctx: ServerContext
     }
   });
 
+  // Versioned tool-call protocol endpoint for Perchance/agent integration.
+  app.post('/api/tool-call', async (req, reply) => {
+    const body = (req.body ?? {}) as any;
+    const allowed = [
+      'list_files','read_file','write_file','edit_file','create_directory','move_file',
+      'delete_file','search_files','execute_command','get_command_status','terminate_command',
+      'get_system_info','git_status','git_diff','list_processes'
+    ];
+    const v = validateToolCall(body, allowed);
+    if (!v.ok) {
+      return reply.code(400).send({ type: 'tool_result', id: body?.id ?? 'unknown', tool: body?.tool ?? 'unknown', ok: false, error: v.error, timestamp: new Date().toISOString() });
+    }
+    try {
+      const result = await executeToolCall(ctx, body, { allowedTools: allowed });
+      return result;
+    } catch (e: any) {
+      return reply.code(500).send({ type: 'tool_result', id: body?.id ?? 'unknown', tool: body?.tool ?? 'unknown', ok: false, error: { code: 'SERVER_ERROR', message: e?.message ?? String(e) }, timestamp: new Date().toISOString() });
+    }
+  });
+
+  app.post('/api/tool-calls', async (req, reply) => {
+    const body = (req.body ?? {}) as any;
+    const calls = Array.isArray(body) ? body : (Array.isArray(body.calls) ? body.calls : [body]);
+    const allowed = [
+      'list_files','read_file','write_file','edit_file','create_directory','move_file',
+      'delete_file','search_files','execute_command','get_command_status','terminate_command',
+      'get_system_info','git_status','git_diff','list_processes'
+    ];
+    const results = [];
+    for (const c of calls) {
+      results.push(await executeToolCall(ctx, c, { allowedTools: allowed }));
+    }
+    return { results };
+  });
+
   app.get('/api/status', async () => {
     const sessions = (ctx as any).__sessions as Map<string, any> | undefined;
     return {
@@ -89,6 +126,8 @@ export function registerDashboardRoutes(app: FastifyInstance, ctx: ServerContext
       runningCommands: ctx.store.running().length,
     };
   });
+
+  app.get('/api/token', async () => ({ token: ctx.localToken ?? null }));
 
   app.get('/api/connection', async () => {
     const url = publicUrl(ctx);
@@ -244,6 +283,7 @@ setTimeout(()=>location.reload(),5000);
 }
 
 function buildPrompt(ctx: ServerContext, url: string): string {
+  const token = ctx.localToken;
   return `You have access to a local computer through the "system-mcp" MCP server.
 
 CONNECTION
@@ -284,6 +324,18 @@ USAGE RULES
 WORKFLOW EXAMPLE
 To create a React app: inspect the project directory, create files, run npm commands, read output, fix errors, summarize changes.
 
+STRUCTURED TOOL-CALL PROTOCOL (for Perchance)
+When you need a tool, output ONLY a fenced JSON block:
+\`\`\`json
+{"type":"tool_call","id":"call_001","tool":"list_files","arguments":{"path":"."}}
+\`\`\`
+The extension/adapter executes it and returns:
+\`\`\`json
+{"type":"tool_result","id":"call_001","tool":"list_files","ok":true,"result":{...}}
+\`\`\`
+Endpoint: POST ${url.replace('/mcp','/api/tool-call')} body {"type":"tool_call","id":"...","tool":"...","arguments":{...}}${token ? ' with header X-System-MCP-Token: ' + token : ''}.
+Never repeat the same call id.
+
 PERCHANCE / FETCH-ONLY AGENTS
 If your agent can only fetch URLs (no MCP tool binding), use the REST adapter:
   GET  ${url.replace('/mcp','/api/px')}?tool=TOOL_NAME&args=URL_ENCODED_JSON
@@ -291,7 +343,10 @@ If your agent can only fetch URLs (no MCP tool binding), use the REST adapter:
 Examples:
   ${url.replace('/mcp','/api/px')}?tool=list_files&args=%7B%22path%22%3A%22%2Fhome%2Fdevdevil%2Fdevelopment%2Fsystem-mcp-test%22%7D
   ${url.replace('/mcp','/api/px')}?tool=get_system_info
-The response is JSON: {"isError":false,"result":{...}}.`;
+The response is JSON: {"isError":false,"result":{...}}.
+If the tunnel is localtunnel, add header Bypass-Tunnel-Reminder: true to each fetch.
+If the tunnel is ngrok free, add header ngrok-skip-browser-warning: true to each fetch.
+Prefer cloudflared/localhost.run/ngrok over localtunnel for fetch-only agents (no reminder page).`;
 }
 
 function escapeHtml(s: string): string {

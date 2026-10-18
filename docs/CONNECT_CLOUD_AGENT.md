@@ -19,13 +19,33 @@ browser still blocks mixed content (https page -> http localhost), expose the se
 through a tunnel and use the resulting HTTPS URL:
 
 ```bash
-# cloudflared
+# cloudflared (recommended: no interstitial page)
 cloudflared tunnel --url http://127.0.0.1:8787
-# or ngrok
+# or ngrok (free tier shows an interstitial unless the request sends ngrok-skip-browser-warning: true)
 ngrok http 8787
+# or localhost.run (no account, no interstitial)
+ssh -R 80:localhost:8787 nokey@localhost.run
 ```
 
 Then point the agent at `https://<tunnel-host>/mcp`.
+
+### Fetch-only agents (Perchance, etc.)
+
+If the agent can only fetch URLs (no MCP tool binding), use the built-in REST adapter:
+
+```
+GET  https://<tunnel-host>/api/px?tool=TOOL_NAME&args=URL_ENCODED_JSON
+POST https://<tunnel-host>/api/px   body: {"tool":"TOOL_NAME","args":{...}}
+```
+
+The dashboard's "Copy-Paste Ready Prompt" already contains these instructions with the
+correct public URL.
+
+Important: **localtunnel** shows a "Tunnel website ahead!" reminder page to browser-like
+requests, which breaks fetch-only agents. Prefer cloudflared, ngrok, or localhost.run.
+If you must use localtunnel, the fetch request must include the header
+`Bypass-Tunnel-Reminder: true`. If you use ngrok's free tier, include
+`ngrok-skip-browser-warning: true`.
 
 ## Planned (Phase 2)
 

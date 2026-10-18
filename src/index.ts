@@ -8,6 +8,7 @@ import { ProcessRegistry } from './execution/processRegistry.js';
 import { AuditLog } from './security/audit.js';
 import { ApprovalManager } from './security/permissions.js';
 import { validateWorkspaces } from './security/paths.js';
+import { getOrCreateLocalToken } from './security/localToken.js';
 import { createLogger } from './utils/logger.js';
 
 const log = createLogger();
@@ -15,6 +16,8 @@ const log = createLogger();
 async function main() {
   const config = loadConfig();
   config.workspaces = validateWorkspaces(config.workspaces);
+
+  const localToken = process.env.SYSTEM_MCP_TOKEN || getOrCreateLocalToken(config.dataDir);
 
   const ctx: ServerContext = {
     config,
@@ -24,6 +27,8 @@ async function main() {
     approvals: new ApprovalManager(),
     startedAt: Date.now(),
     toolHandlers: new Map(),
+    localToken,
+    toolCallResults: new Map(),
   };
 
   // Register tool handlers once so REST/agent adapters can invoke them without an MCP session.

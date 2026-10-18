@@ -75,6 +75,16 @@ all file operations. Remote access disabled until explicitly enabled.
 npm test
 ```
 
+## Perchance Code
+
+Launch a Perchance-powered coding workspace:
+
+```bash
+./perchance-code.sh ~/projects/my-app
+```
+
+See docs/PERCHANCE_INTEGRATION.md, docs/SECURITY.md, docs/TROUBLESHOOTING.md.
+
 ## Docs
 
 - docs/ARCHITECTURE.md

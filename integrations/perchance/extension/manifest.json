@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Perchance Code Bridge",
+  "version": "0.1.0",
+  "description": "Connects Perchance AI to a local system-mcp daemon for coding tasks.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": [
+    "https://perchance.org/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "background": {
+    "service_worker": "background/service_worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://perchance.org/*"],
+      "js": ["content/adapter.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Perchance Code Bridge"
+  }
+}

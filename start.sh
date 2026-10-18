@@ -123,6 +123,31 @@ try_localhost_run() {
     return 1
 }
 
+try_ngrok() {
+    if ! command -v ngrok >/dev/null 2>&1; then return 1; fi
+    echo "[INFO] Trying ngrok..."
+    TUNNEL_LOG="$(mktemp)"
+    ngrok http 127.0.0.1:$PORT >"$TUNNEL_LOG" 2>&1 &
+    TUNNEL_PID=$!
+    for i in $(seq 1 20); do
+        if ! kill -0 "$TUNNEL_PID" 2>/dev/null; then
+            echo "[WARN] ngrok exited (missing authtoken or error)."
+            wait "$TUNNEL_PID" 2>/dev/null || true
+            TUNNEL_PID=""
+            rm -f "$TUNNEL_LOG"
+            return 1
+        fi
+        TUNNEL_URL=$(grep -oE 'https://[a-zA-Z0-9-]+\.ngrok(-free)?\.(app|io|dev)' "$TUNNEL_LOG" | head -1)
+        if [ -n "$TUNNEL_URL" ]; then return 0; fi
+        sleep 1
+    done
+    echo "[WARN] ngrok did not produce a URL in time."
+    kill "$TUNNEL_PID" 2>/dev/null || true
+    TUNNEL_PID=""
+    rm -f "$TUNNEL_LOG"
+    return 1
+}
+
 try_localtunnel() {
     if ! command -v npx >/dev/null 2>&1; then return 1; fi
     echo "[INFO] Trying localtunnel (no cloudflared needed)..."
@@ -148,15 +173,17 @@ try_localtunnel() {
     return 1
 }
 
-if try_cloudflared || try_localhost_run || try_localtunnel; then
+if try_cloudflared || try_localhost_run || try_ngrok || try_localtunnel; then
     echo "============================================"
     echo "  PUBLIC (HTTPS) MCP URL: $TUNNEL_URL/mcp"
     echo "  Use this URL in browser-based agents."
     echo "============================================"
 else
     echo "[INFO] No working tunnel tool found. For browser agents, install one of:"
-    echo "       npm i -g localtunnel   (then: lt --port $PORT)"
+    echo "       cloudflared (recommended, no interstitial)"
+    echo "       ngrok (then: ngrok config add-authtoken <token> && ngrok http $PORT)"
     echo "       or: ssh -R 80:localhost:$PORT nokey@localhost.run"
+    echo "       or: npm i -g localtunnel   (then: lt --port $PORT)"
 fi
 
 # Expose public URL to the server/dashboard if a tunnel is active

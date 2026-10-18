@@ -1,0 +1,20 @@
+[Desktop Entry]
+Name=Perchance Code
+Comment=Local-first AI coding agent powered by Perchance
+Exec=/workspaces/system-mcp/perchance-code.sh %f
+Type=Application
+Terminal=true
+Categories=Development;IDE;
+Icon=utilities-terminal
+```
+
+But path should be generic. Use placeholder? Desktop entry typically absolute. We'll leave as script dir? Use `bash -c`? Keep absolute for this repo. Fine.
+
+Now tests. Need add tests for new functionality. Vitest include tests/**/*.test.ts. Create tests under tests/integrations/perchance/*.test.ts. Need test protocol, executor, agent loop, security. Let's write tests.
+
+Test protocol: parse/validate. Test executor with ctx. Test agent loop with mock client.
+
+Let's create test helpers. We'll follow existing integration test pattern. Need ctx with toolHandlers populated. Since tests construct ctx and call createMcpServer to populate handlers. We'll do that.
+
+Test 1 protocol.<|end|><|start|> fileList <|constrain|>xml<|message|><rfl:parameter name="command">
+cd /workspaces/system-mcp && mkdir -p tests/integrations/perchance

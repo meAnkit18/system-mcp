@@ -69,19 +69,29 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM Optional public tunnel (cloudflared, else localtunnel via npx)
+REM Optional public tunnel (cloudflared, then ngrok, then localtunnel via npx)
 where cloudflared >nul 2>&1
 if not errorlevel 1 (
     echo [INFO] cloudflared found - starting public tunnel in new window...
     start "system-mcp-tunnel" cmd /k "cloudflared tunnel --url http://127.0.0.1:8787"
 ) else (
-    where npx >nul 2>&1
+    where ngrok >nul 2>&1
     if not errorlevel 1 (
-        echo [INFO] Using localtunnel via npx (no cloudflared needed)...
-        start "system-mcp-tunnel" cmd /k "npx --yes localtunnel --port 8787"
+        echo [INFO] ngrok found - starting public tunnel in new window...
+        echo [INFO] If ngrok asks for an authtoken, run: ngrok config add-authtoken ^<token^>
+        start "system-mcp-tunnel" cmd /k "ngrok http 8787"
     ) else (
-        echo [INFO] No tunnel tool found. For browser agents, install localtunnel:
-        echo        npm i -g localtunnel   (then: lt --port 8787)
+        where npx >nul 2>&1
+        if not errorlevel 1 (
+            echo [INFO] Using localtunnel via npx (no cloudflared/ngrok needed)...
+            echo [WARN] localtunnel shows a reminder page to browsers; for fetch-only agents prefer cloudflared or ngrok.
+            start "system-mcp-tunnel" cmd /k "npx --yes localtunnel --port 8787"
+        ) else (
+            echo [INFO] No tunnel tool found. For browser agents, install one of:
+            echo        cloudflared  (recommended)
+            echo        ngrok        (then: ngrok config add-authtoken ^<token^>)
+            echo        npm i -g localtunnel   (then: lt --port 8787)
+        )
     )
 )
 
